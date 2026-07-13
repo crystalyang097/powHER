@@ -278,74 +278,34 @@ def _exercises_from_routine(routine: Routine) -> list[dict]:
 
 
 def render_routine_bar():
-    """Saved routines pinned at the top of Today's Workout: one tap loads a
-    named group of exercises as a fresh template (weights and reps zeroed)."""
+    """Saved routines: one tap loads a named group of exercises as a fresh
+    template (weights and reps zeroed). Routines are created from History."""
     routines = storage.get_routines(USER_ID)
+    if not routines:
+        return
 
-    if routines:
-        st.caption("Start from a routine")
-        cols = st.columns(min(len(routines), 3))
-        for i, routine in enumerate(routines):
-            if cols[i % len(cols)].button(
-                f"📋 {routine.name}", key=f"load_routine_{routine.routine_id}",
-                use_container_width=True,
-            ):
-                st.session_state.workout_exercises = _exercises_from_routine(routine)
-                st.toast(f"Loaded “{routine.name}” — fill in your weights and reps.")
+    st.caption("Start from a routine")
+    cols = st.columns(min(len(routines), 3))
+    for i, routine in enumerate(routines):
+        if cols[i % len(cols)].button(
+            f"📋 {routine.name}", key=f"load_routine_{routine.routine_id}",
+            use_container_width=True,
+        ):
+            st.session_state.workout_exercises = _exercises_from_routine(routine)
+            st.toast(f"Loaded “{routine.name}” — fill in your weights and reps.")
+            st.rerun()
+
+    with st.expander("Manage routines"):
+        for routine in routines:
+            row = st.columns([5, 1])
+            row[0].write(f"**{routine.name}** — {', '.join(r.name for r in routine.exercises)}")
+            if row[1].button("🗑", key=f"del_routine_{routine.routine_id}", help="Delete this routine"):
+                storage.delete_routine(routine.routine_id)
                 st.rerun()
 
-    with st.expander("＋ Save current exercises as a routine"):
-        named = [ex["name"].strip() for ex in st.session_state.workout_exercises if ex["name"].strip()]
-        if not named:
-            st.caption("Add at least one named exercise above, then save it here as a reusable routine.")
-        else:
-            st.caption(f"Will save: {', '.join(named)}")
-            # A form batches the name field and submit so no intermediate rerun
-            # fires — otherwise the text field's blur would collapse this expander
-            # before the save button registers.
-            with st.form("save_routine_form", clear_on_submit=True):
-                routine_name = st.text_input("Routine name", placeholder="e.g. Leg Day")
-                if st.form_submit_button("Save routine"):
-                    if not routine_name.strip():
-                        st.error("Give your routine a name first.")
-                    else:
-                        routine = Routine(
-                            routine_id=str(uuid.uuid4()),
-                            user_id=USER_ID,
-                            name=routine_name.strip(),
-                            exercises=[
-                                RoutineExercise(
-                                    name=ex["name"].strip(),
-                                    set_types=[s["set_type"] for s in ex["sets"]],
-                                )
-                                for ex in st.session_state.workout_exercises
-                                if ex["name"].strip()
-                            ],
-                        )
-                        storage.save_routine(routine)
-                        st.toast(f"Saved “{routine.name}” — it's now at the top of Today's Workout.")
-                        st.rerun()
 
-    if routines:
-        with st.expander("Manage routines"):
-            for routine in routines:
-                row = st.columns([5, 1])
-                row[0].write(f"**{routine.name}** — {', '.join(r.name for r in routine.exercises)}")
-                if row[1].button("🗑", key=f"del_routine_{routine.routine_id}", help="Delete this routine"):
-                    storage.delete_routine(routine.routine_id)
-                    st.rerun()
-
-    st.divider()
-
-
-def render_workout(profile: Profile):
-    st.subheader("Today's Workout")
-
-    if "workout_exercises" not in st.session_state:
-        st.session_state.workout_exercises = [_new_exercise()]
-
-    render_routine_bar()
-
+def render_exercise_inputs():
+    """The per-exercise, per-set editor for the current workout."""
     for i, ex in enumerate(st.session_state.workout_exercises):
         eid = ex["uid"]
         with st.container(border=True):
@@ -394,17 +354,71 @@ def render_workout(profile: Profile):
         st.session_state.workout_exercises.append(_new_exercise())
         st.rerun()
 
+
+def render_workout(profile: Profile):
+    st.subheader("Today's Workout")
+
+    if "workout_exercises" not in st.session_state:
+        st.session_state.workout_exercises = [_new_exercise()]
+
+    # --- Step 1: check in and get the recommendation BEFORE working out ---
+    st.markdown("**First, how are you feeling today?**")
     energy_tags = st.multiselect(
-        "How are you feeling today? (pick one or more)",
+        "Pick one or more",
         options=list(EnergyTag),
         format_func=lambda t: ENERGY_LABELS[t],
+        key="today_energy",
     )
-    notes = st.text_area("Session notes (optional)", value="", placeholder="Anything about today's session as a whole")
+    notes = st.text_area(
+        "Anything you want to note before you start? (optional)",
+        key="today_notes",
+        placeholder="e.g. slept badly, feeling motivated, tight shoulder",
+    )
 
     if st.button("Get my recommendation", type="primary"):
         if not energy_tags:
             st.error("Pick at least one energy tag so we know how to help.")
-            return
+        else:
+            history = storage.get_workouts(USER_ID)
+            with st.spinner("Thinking this through..."):
+                ctx = build_context(profile, energy_tags, profile.goal, notes, history)
+                result = generate(ctx, energy_tags)
+            st.session_state.today_reco = {
+                "message": result.message,
+                "recommendation": result.recommendation,
+                "source_ids": sorted(result.source_ids),
+                "used_fallback": result.used_fallback,
+                "pattern_note": ctx.pattern_note,
+            }
+            st.rerun()
+
+    reco = st.session_state.get("today_reco")
+    if not reco:
+        return
+
+    st.markdown(
+        f"<div class='powher-card'><span class='powher-quote'>“{reco['message']}”</span></div>",
+        unsafe_allow_html=True,
+    )
+    st.markdown("**Recommendation**")
+    st.write(reco["recommendation"])
+    if reco["source_ids"]:
+        badges = "".join(
+            f"<span class='powher-badge powher-badge-alt'>{sid}</span>" for sid in reco["source_ids"]
+        )
+        st.markdown(f"Sources: {badges}", unsafe_allow_html=True)
+    if reco["used_fallback"]:
+        st.caption("Served from our curated message bank this time, to stay safely grounded.")
+    if reco["pattern_note"]:
+        st.info(reco["pattern_note"])
+
+    # --- Step 2: log the workout, then mark it done ---
+    st.divider()
+    st.markdown("### Now log your workout")
+    render_routine_bar()
+    render_exercise_inputs()
+
+    if st.button("✅ Mark workout as done", type="primary"):
         exercises = [
             Exercise(
                 name=ex["name"].strip(),
@@ -417,51 +431,60 @@ def render_workout(profile: Profile):
             for ex in st.session_state.workout_exercises
             if ex["name"].strip()
         ]
+        if not exercises:
+            st.error("Add at least one exercise before marking your workout done.")
+            return
 
         phase = current_phase(profile)
         cycle_day_val = None
         if profile.cycle_applicable and profile.last_period_start is not None:
             cycle_day_val = compute_cycle_day(profile.last_period_start, profile.cycle_length)
 
-        history = storage.get_workouts(USER_ID)
-
-        last_logged_weight = None
-        proposed_weight = None
-        if exercises:
-            primary = exercises[0]
-            last_logged_weight = storage.last_logged_weight(USER_ID, primary.name)
-            if EnergyTag.ENERGIZED in energy_tags and last_logged_weight:
-                proposed_weight = round((last_logged_weight * 1.05) / 2.5) * 2.5
-
-        with st.spinner("Thinking this through..."):
-            ctx = build_context(profile, energy_tags, profile.goal, notes, history)
-            result = generate(ctx, energy_tags, last_logged_weight=last_logged_weight, proposed_weight=proposed_weight)
-
         entry = WorkoutEntry(
             entry_id=str(uuid.uuid4()),
             user_id=USER_ID,
             date=date.today(),
             exercises=exercises,
-            energy_tags=energy_tags,
+            energy_tags=st.session_state.get("today_energy", []),
             cycle_day=cycle_day_val,
             phase=phase,
-            notes=notes,
+            notes=st.session_state.get("today_notes", ""),
         )
         storage.save_workout(entry)
+        for key in ["today_reco", "today_energy", "today_notes", "workout_exercises"]:
+            st.session_state.pop(key, None)
+        st.toast("Workout saved to your History 💪 You can turn it into a routine there.")
+        st.session_state.page = "history"
+        st.rerun()
 
-        st.markdown(
-            f"<div class='powher-card'><span class='powher-quote'>“{result.message}”</span></div>",
-            unsafe_allow_html=True,
-        )
-        st.markdown("**Recommendation**")
-        st.write(result.recommendation)
-        if result.source_ids:
-            badges = "".join(f"<span class='powher-badge powher-badge-alt'>{sid}</span>" for sid in sorted(result.source_ids))
-            st.markdown(f"Sources: {badges}", unsafe_allow_html=True)
-        if result.used_fallback:
-            st.caption("Served from our curated message bank this time, to stay safely grounded.")
-        if ctx.pattern_note:
-            st.info(ctx.pattern_note)
+
+def render_save_as_routine(entry: WorkoutEntry):
+    """Turn a saved workout into a reusable, named routine (exercises and set
+    types only — weights and reps are entered fresh each time it's loaded)."""
+    with st.expander("＋ Save as routine"):
+        # A form batches the name field and submit so the text field's blur
+        # can't collapse this expander before the save registers.
+        with st.form(f"routine_from_{entry.entry_id}", clear_on_submit=True):
+            routine_name = st.text_input("Routine name", placeholder="e.g. Leg Day")
+            if st.form_submit_button("Save routine"):
+                if not routine_name.strip():
+                    st.error("Give your routine a name first.")
+                else:
+                    routine = Routine(
+                        routine_id=str(uuid.uuid4()),
+                        user_id=USER_ID,
+                        name=routine_name.strip(),
+                        exercises=[
+                            RoutineExercise(
+                                name=ex.name.strip(),
+                                set_types=[s.set_type for s in ex.sets],
+                            )
+                            for ex in entry.exercises
+                        ],
+                    )
+                    storage.save_routine(routine)
+                    st.toast(f"Saved “{routine.name}” — start from it any time on Today's Workout.")
+                    st.rerun()
 
 
 def render_history(profile: Profile):
@@ -490,6 +513,7 @@ def render_history(profile: Profile):
                     st.caption(f"↳ {ex.notes}")
             if entry.notes:
                 st.caption(entry.notes)
+            render_save_as_routine(entry)
 
     # Group exercises by normalized name (case, spacing, and plural insensitive)
     # so variants like "Goblet Squat", "goblet squat", and "goblet squats" share
