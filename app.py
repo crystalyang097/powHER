@@ -14,7 +14,6 @@ from powher.cycle import (
     cycle_day as compute_cycle_day,
     phase_for_date,
 )
-from powher.messages import get_fallback_message
 from powher.models import (
     EnergyTag,
     Exercise,
@@ -50,6 +49,16 @@ PHASE_BLURBS = {
     Phase.OVULATORY: "The few days around mid-cycle. Some feel a short burst of energy, others notice nothing distinct.",
     Phase.LUTEAL: "Progesterone rises, then both hormones drop before your next period — PMS symptoms are most commonly reported in this window.",
 }
+PHASE_NORMAL_LINE = "Some women notice this. Many notice nothing. Both are completely normal."
+# Encouragement stays conditional on how she actually feels — never "you're in
+# X phase, so do Y". Phase gives context; the body gets the final say.
+PHASE_ENCOURAGEMENT = {
+    Phase.MENSTRUAL: "However today feels, gentle movement can genuinely ease the aches — and rest is just as valid. You get to choose.",
+    Phase.FOLLICULAR: "If you're feeling good, give yourself a little push today — you'd be surprised what your body can do.",
+    Phase.OVULATORY: "If there's a little extra in the tank today, enjoy spending it. And if there isn't, steady is still strong.",
+    Phase.LUTEAL: "Some feel a dip before their period, some don't — however today lands, you get to meet it your way. You've got this.",
+}
+GENERAL_ENCOURAGEMENT = "However you're feeling today, showing up is the part that counts. Meet yourself where you are."
 
 st.set_page_config(page_title="powHER", page_icon="🌸", layout="centered")
 
@@ -92,6 +101,17 @@ def inject_css():
         }}
         .powher-badge-alt {{ background-color: {accent2}; }}
         .powher-note {{ font-size: 0.85rem; opacity: 0.75; font-style: italic; }}
+        .powher-keepinmind {{
+            font-weight: 700;
+            color: {text};
+            font-size: 0.8rem;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            opacity: 0.7;
+            margin-top: 1.4rem;
+            margin-bottom: 0.3rem;
+        }}
+        .powher-edu {{ font-size: 1rem; color: {text}; line-height: 1.6; margin: 0.3rem auto; max-width: 90%; }}
         div.stButton > button {{
             border-radius: 14px;
             font-weight: 700;
@@ -189,8 +209,13 @@ def render_home(profile: Profile):
     phase = current_phase(profile)
     if phase is not None:
         st.markdown(
-            f"<div class='powher-card'><span class='powher-badge'>Estimated phase: {phase.value.title()}</span>"
-            f"<p class='powher-note'>{ESTIMATE_NOTE}</p></div>",
+            f"<div class='powher-card'>"
+            f"<span class='powher-badge'>Estimated phase: {phase.value.title()}</span>"
+            f"<p class='powher-note'>{ESTIMATE_NOTE}</p>"
+            f"<p class='powher-keepinmind'>Something to keep in mind</p>"
+            f"<p class='powher-edu'>{PHASE_BLURBS[phase]}</p>"
+            f"<p class='powher-note'>{PHASE_NORMAL_LINE}</p>"
+            f"</div>",
             unsafe_allow_html=True,
         )
     if amenorrhea_flag(profile.last_period_start) if profile.cycle_applicable else False:
@@ -200,9 +225,9 @@ def render_home(profile: Profile):
             "way of saying it needs more fuel or more rest. Nothing about this means you've "
             "done anything wrong."
         )
-    todays_message = get_fallback_message(EnergyTag.NORMAL, phase)
+    encouragement = PHASE_ENCOURAGEMENT.get(phase, GENERAL_ENCOURAGEMENT)
     st.markdown(
-        f"<div class='powher-card'><span class='powher-quote'>“{todays_message}”</span></div>",
+        f"<div class='powher-card'><span class='powher-quote'>“{encouragement}”</span></div>",
         unsafe_allow_html=True,
     )
     st.write("Where to next?")
@@ -455,7 +480,7 @@ def render_cycle(profile: Profile):
     for phase, blurb in PHASE_BLURBS.items():
         st.markdown(f"**{phase.value.title()}**")
         st.write(blurb)
-        st.caption("Some women notice this. Many notice nothing. Both are completely normal.")
+        st.caption(PHASE_NORMAL_LINE)
 
     st.divider()
     st.markdown("### Your data")
