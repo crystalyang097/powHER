@@ -6,6 +6,40 @@ from typing import Literal
 Goal = Literal["strength", "hypertrophy", "endurance", "general_fitness", "fat_loss"]
 
 
+def _singularize(word: str) -> str:
+    """Best-effort singular form of one word, tuned for gym vocabulary.
+
+    English plurals are irregular, so this is a heuristic, not a stemmer. It
+    deliberately leaves words ending in "ss" alone so "press" is never mangled
+    into "pres". Good enough to merge "squats"/"squat"; a fixed exercise
+    library will replace it later.
+    """
+    if len(word) <= 3:
+        return word  # don't butcher short tokens ("abs", "ups")
+    if word.endswith("ies"):
+        return word[:-3] + "y"  # flies -> fly
+    if word.endswith("sses"):
+        return word[:-2]  # presses -> press
+    if word.endswith(("ches", "shes", "xes", "zes")):
+        return word[:-2]  # crunches -> crunch, boxes -> box
+    if word.endswith("ss") or word.endswith("us") or word.endswith("is"):
+        return word  # press, status, and the like are not plurals
+    if word.endswith("s"):
+        return word[:-1]  # squats -> squat, raises -> raise, lunges -> lunge
+    return word
+
+
+def normalize_exercise_name(name: str) -> str:
+    """Canonical key for matching exercises: lowercased, trimmed, singularized.
+
+    Used everywhere two exercise names are compared (history trends, load
+    guardrail) so spelling, case, spacing, and plural variants all resolve to
+    the same lift.
+    """
+    words = name.strip().lower().split()
+    return " ".join(_singularize(w) for w in words)
+
+
 class EnergyTag(str, Enum):
     ENERGIZED = "ENERGIZED"
     NORMAL = "NORMAL"

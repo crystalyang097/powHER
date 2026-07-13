@@ -15,7 +15,16 @@ from powher.cycle import (
     phase_for_date,
 )
 from powher.messages import get_fallback_message
-from powher.models import EnergyTag, Exercise, Phase, Profile, SetType, WorkoutEntry, WorkoutSet
+from powher.models import (
+    EnergyTag,
+    Exercise,
+    Phase,
+    Profile,
+    SetType,
+    WorkoutEntry,
+    WorkoutSet,
+    normalize_exercise_name,
+)
 
 USER_ID = "local_user"
 GOALS = ["strength", "hypertrophy", "endurance", "general_fitness", "fat_loss"]
@@ -375,21 +384,21 @@ def render_history(profile: Profile):
             if entry.notes:
                 st.caption(entry.notes)
 
-    # Group exercises by normalized name (case-insensitive, trimmed) so spelling
-    # variants like "Goblet Squat" and "goblet squat" share one trend. This
-    # matches how storage.last_logged_weight resolves an exercise.
+    # Group exercises by normalized name (case, spacing, and plural insensitive)
+    # so variants like "Goblet Squat", "goblet squat", and "goblet squats" share
+    # one trend. Same resolver as storage.last_logged_weight.
     by_norm: dict[str, str] = {}
     for e in sorted(history, key=lambda e: e.date):
         for ex in e.exercises:
-            by_norm[ex.name.strip().lower()] = ex.name.strip()  # keep latest spelling as label
+            by_norm[normalize_exercise_name(ex.name)] = ex.name.strip()  # keep latest spelling as label
     if by_norm:
         chosen = st.selectbox("Weight trend for", sorted(by_norm.values(), key=str.lower))
-        chosen_norm = chosen.strip().lower()
+        chosen_norm = normalize_exercise_name(chosen)
         trend = [
             {"date": e.date, "weight": ex.top_working_weight()}
             for e in sorted(history, key=lambda e: e.date)
             for ex in e.exercises
-            if ex.name.strip().lower() == chosen_norm and ex.top_working_weight() is not None
+            if normalize_exercise_name(ex.name) == chosen_norm and ex.top_working_weight() is not None
         ]
         if trend:
             import pandas as pd

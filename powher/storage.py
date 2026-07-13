@@ -14,7 +14,16 @@ from pathlib import Path
 from cryptography.fernet import Fernet
 from dotenv import load_dotenv, set_key
 
-from powher.models import EnergyTag, Exercise, Phase, Profile, SetType, WorkoutEntry, WorkoutSet
+from powher.models import (
+    EnergyTag,
+    Exercise,
+    Phase,
+    Profile,
+    SetType,
+    WorkoutEntry,
+    WorkoutSet,
+    normalize_exercise_name,
+)
 
 load_dotenv()
 
@@ -229,9 +238,10 @@ def get_workouts(user_id: str, db_path: Path = DB_PATH) -> list[WorkoutEntry]:
 
 def last_logged_weight(user_id: str, exercise_name: str, db_path: Path = DB_PATH) -> float | None:
     """Most recent logged weight for a given exercise, for load-bound guardrails."""
+    target = normalize_exercise_name(exercise_name)
     for entry in get_workouts(user_id, db_path):
         for ex in entry.exercises:
-            if ex.name.strip().lower() == exercise_name.strip().lower():
+            if normalize_exercise_name(ex.name) == target:
                 weight = ex.top_working_weight()
                 if weight is not None:
                     return weight

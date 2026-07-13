@@ -71,3 +71,9 @@ def test_last_logged_weight_ignores_warmups(db):
     ]
     storage.save_workout(_entry(exercises), db)
     assert storage.last_logged_weight("u", "Deadlift", db) == 120.0
+
+
+def test_last_logged_weight_matches_plural_and_case(db):
+    exercises = [Exercise(name="Goblet Squats", sets=[WorkoutSet(24.0, 10, SetType.NORMAL)])]
+    storage.save_workout(_entry(exercises), db)
+    assert storage.last_logged_weight("u", "goblet squat", db) == 24.0
