@@ -369,20 +369,27 @@ def render_history(profile: Profile):
                     elif s.set_type == SetType.FAILURE:
                         bit += " (to failure)"
                     set_bits.append(bit)
-                st.write(f"- **{ex.name}**: {', '.join(set_bits)}")
+                st.write(f"- **{ex.name.strip()}**: {', '.join(set_bits)}")
                 if ex.notes:
                     st.caption(f"↳ {ex.notes}")
             if entry.notes:
                 st.caption(entry.notes)
 
-    exercise_names = sorted({ex.name for e in history for ex in e.exercises})
-    if exercise_names:
-        chosen = st.selectbox("Weight trend for", exercise_names)
+    # Group exercises by normalized name (case-insensitive, trimmed) so spelling
+    # variants like "Goblet Squat" and "goblet squat" share one trend. This
+    # matches how storage.last_logged_weight resolves an exercise.
+    by_norm: dict[str, str] = {}
+    for e in sorted(history, key=lambda e: e.date):
+        for ex in e.exercises:
+            by_norm[ex.name.strip().lower()] = ex.name.strip()  # keep latest spelling as label
+    if by_norm:
+        chosen = st.selectbox("Weight trend for", sorted(by_norm.values(), key=str.lower))
+        chosen_norm = chosen.strip().lower()
         trend = [
             {"date": e.date, "weight": ex.top_working_weight()}
             for e in sorted(history, key=lambda e: e.date)
             for ex in e.exercises
-            if ex.name == chosen and ex.top_working_weight() is not None
+            if ex.name.strip().lower() == chosen_norm and ex.top_working_weight() is not None
         ]
         if trend:
             import pandas as pd
