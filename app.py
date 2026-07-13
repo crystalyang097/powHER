@@ -19,6 +19,8 @@ from powher.models import (
     Exercise,
     Phase,
     Profile,
+    Routine,
+    RoutineExercise,
     SetType,
     WorkoutEntry,
     WorkoutSet,
@@ -250,12 +252,90 @@ SET_TYPE_LABELS = {
 }
 
 
-def _new_set() -> dict:
-    return {"uid": uuid.uuid4().hex, "weight": 0.0, "reps": 8, "set_type": SetType.NORMAL}
+def _new_set(set_type: SetType = SetType.NORMAL) -> dict:
+    return {"uid": uuid.uuid4().hex, "weight": 0.0, "reps": 8, "set_type": set_type}
 
 
 def _new_exercise() -> dict:
     return {"uid": uuid.uuid4().hex, "name": "", "notes": "", "sets": [_new_set()]}
+
+
+def _blank_set(set_type: SetType) -> dict:
+    """A set pre-filled from a routine: type preserved, weight and reps zeroed."""
+    return {"uid": uuid.uuid4().hex, "weight": 0.0, "reps": 0, "set_type": set_type}
+
+
+def _exercises_from_routine(routine: Routine) -> list[dict]:
+    return [
+        {
+            "uid": uuid.uuid4().hex,
+            "name": rex.name,
+            "notes": "",
+            "sets": [_blank_set(t) for t in rex.set_types] or [_blank_set(SetType.NORMAL)],
+        }
+        for rex in routine.exercises
+    ]
+
+
+def render_routine_bar():
+    """Saved routines pinned at the top of Today's Workout: one tap loads a
+    named group of exercises as a fresh template (weights and reps zeroed)."""
+    routines = storage.get_routines(USER_ID)
+
+    if routines:
+        st.caption("Start from a routine")
+        cols = st.columns(min(len(routines), 3))
+        for i, routine in enumerate(routines):
+            if cols[i % len(cols)].button(
+                f"📋 {routine.name}", key=f"load_routine_{routine.routine_id}",
+                use_container_width=True,
+            ):
+                st.session_state.workout_exercises = _exercises_from_routine(routine)
+                st.toast(f"Loaded “{routine.name}” — fill in your weights and reps.")
+                st.rerun()
+
+    with st.expander("＋ Save current exercises as a routine"):
+        named = [ex["name"].strip() for ex in st.session_state.workout_exercises if ex["name"].strip()]
+        if not named:
+            st.caption("Add at least one named exercise above, then save it here as a reusable routine.")
+        else:
+            st.caption(f"Will save: {', '.join(named)}")
+            # A form batches the name field and submit so no intermediate rerun
+            # fires — otherwise the text field's blur would collapse this expander
+            # before the save button registers.
+            with st.form("save_routine_form", clear_on_submit=True):
+                routine_name = st.text_input("Routine name", placeholder="e.g. Leg Day")
+                if st.form_submit_button("Save routine"):
+                    if not routine_name.strip():
+                        st.error("Give your routine a name first.")
+                    else:
+                        routine = Routine(
+                            routine_id=str(uuid.uuid4()),
+                            user_id=USER_ID,
+                            name=routine_name.strip(),
+                            exercises=[
+                                RoutineExercise(
+                                    name=ex["name"].strip(),
+                                    set_types=[s["set_type"] for s in ex["sets"]],
+                                )
+                                for ex in st.session_state.workout_exercises
+                                if ex["name"].strip()
+                            ],
+                        )
+                        storage.save_routine(routine)
+                        st.toast(f"Saved “{routine.name}” — it's now at the top of Today's Workout.")
+                        st.rerun()
+
+    if routines:
+        with st.expander("Manage routines"):
+            for routine in routines:
+                row = st.columns([5, 1])
+                row[0].write(f"**{routine.name}** — {', '.join(r.name for r in routine.exercises)}")
+                if row[1].button("🗑", key=f"del_routine_{routine.routine_id}", help="Delete this routine"):
+                    storage.delete_routine(routine.routine_id)
+                    st.rerun()
+
+    st.divider()
 
 
 def render_workout(profile: Profile):
@@ -263,6 +343,8 @@ def render_workout(profile: Profile):
 
     if "workout_exercises" not in st.session_state:
         st.session_state.workout_exercises = [_new_exercise()]
+
+    render_routine_bar()
 
     for i, ex in enumerate(st.session_state.workout_exercises):
         eid = ex["uid"]
@@ -291,7 +373,7 @@ def render_workout(profile: Profile):
                     key=f"set_weight_{sid}", label_visibility="collapsed",
                 )
                 s["reps"] = cols[3].number_input(
-                    "Reps", min_value=1, value=int(s["reps"]),
+                    "Reps", min_value=0, value=int(s["reps"]),
                     key=f"set_reps_{sid}", label_visibility="collapsed",
                 )
                 if len(ex["sets"]) > 1:

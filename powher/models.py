@@ -104,3 +104,24 @@ class WorkoutEntry:
     cycle_day: int | None = None  # derived, ENCRYPTED
     phase: Phase | None = None  # derived, ENCRYPTED
     notes: str = ""
+
+
+@dataclass
+class RoutineExercise:
+    """One exercise slot in a saved routine: a name and the set structure to
+    pre-fill. Weight and reps are entered fresh each session, so only the set
+    types (order and count) are stored here."""
+
+    name: str
+    set_types: list[SetType]
+
+
+@dataclass
+class Routine:
+    """A named, ordered group of exercises the user can start a workout from."""
+
+    routine_id: str
+    user_id: str
+    name: str
+    exercises: list[RoutineExercise]
+    created_at: datetime = field(default_factory=datetime.now)

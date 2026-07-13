@@ -19,6 +19,8 @@ from powher.models import (
     Exercise,
     Phase,
     Profile,
+    Routine,
+    RoutineExercise,
     SetType,
     WorkoutEntry,
     WorkoutSet,
@@ -88,6 +90,17 @@ def init_db(db_path: Path = DB_PATH) -> None:
             cycle_day_enc TEXT,
             phase_enc TEXT,
             notes TEXT DEFAULT ''
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS routines (
+            routine_id TEXT PRIMARY KEY,
+            user_id TEXT NOT NULL,
+            name TEXT NOT NULL,
+            exercises_json TEXT NOT NULL,
+            created_at TEXT NOT NULL
         )
         """
     )
@@ -248,9 +261,65 @@ def last_logged_weight(user_id: str, exercise_name: str, db_path: Path = DB_PATH
     return None
 
 
+def save_routine(routine: Routine, db_path: Path = DB_PATH) -> None:
+    conn = get_connection(db_path)
+    exercises_json = json.dumps(
+        [{"name": e.name, "set_types": [t.value for t in e.set_types]} for e in routine.exercises]
+    )
+    conn.execute(
+        """
+        INSERT INTO routines (routine_id, user_id, name, exercises_json, created_at)
+        VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(routine_id) DO UPDATE SET
+            name=excluded.name,
+            exercises_json=excluded.exercises_json
+        """,
+        (
+            routine.routine_id,
+            routine.user_id,
+            routine.name,
+            exercises_json,
+            routine.created_at.isoformat(),
+        ),
+    )
+    conn.commit()
+    conn.close()
+
+
+def _row_to_routine(row: sqlite3.Row) -> Routine:
+    exercises = [
+        RoutineExercise(name=e["name"], set_types=[SetType(t) for t in e["set_types"]])
+        for e in json.loads(row["exercises_json"])
+    ]
+    return Routine(
+        routine_id=row["routine_id"],
+        user_id=row["user_id"],
+        name=row["name"],
+        exercises=exercises,
+        created_at=datetime.fromisoformat(row["created_at"]),
+    )
+
+
+def get_routines(user_id: str, db_path: Path = DB_PATH) -> list[Routine]:
+    conn = get_connection(db_path)
+    rows = conn.execute(
+        "SELECT * FROM routines WHERE user_id = ? ORDER BY created_at", (user_id,)
+    ).fetchall()
+    conn.close()
+    return [_row_to_routine(r) for r in rows]
+
+
+def delete_routine(routine_id: str, db_path: Path = DB_PATH) -> None:
+    conn = get_connection(db_path)
+    conn.execute("DELETE FROM routines WHERE routine_id = ?", (routine_id,))
+    conn.commit()
+    conn.close()
+
+
 def delete_all_user_data(user_id: str, db_path: Path = DB_PATH) -> None:
     conn = get_connection(db_path)
     conn.execute("DELETE FROM profiles WHERE user_id = ?", (user_id,))
     conn.execute("DELETE FROM workouts WHERE user_id = ?", (user_id,))
+    conn.execute("DELETE FROM routines WHERE user_id = ?", (user_id,))
     conn.commit()
     conn.close()
