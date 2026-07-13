@@ -103,9 +103,16 @@ def ensure_profile_loaded():
 def render_onboarding():
     st.markdown("<div class='powher-card'><span class='powher-quote'>Welcome to powHER 🌸</span></div>", unsafe_allow_html=True)
     st.write("Let's set up your profile. This only takes a moment.")
+    st.caption("Fields marked with :red[*] are required.")
     with st.form("onboarding"):
-        display_name = st.text_input("What should we call you?", value="")
-        goal = st.selectbox("Primary training goal", GOALS, format_func=lambda g: GOAL_LABELS[g])
+        display_name = st.text_input("What should we call you? :red[*]", value="")
+        goal = st.selectbox(
+            "Primary training goal :red[*]",
+            GOALS,
+            index=None,
+            placeholder="Choose your goal",
+            format_func=lambda g: GOAL_LABELS[g],
+        )
         cycle_applicable = not st.checkbox("This might not apply to me right now")
         if not cycle_applicable:
             st.info(
@@ -120,10 +127,24 @@ def render_onboarding():
         last_period_start = None
         cycle_length = 28
         if cycle_applicable:
-            last_period_start = st.date_input("First day of your last period", value=date.today())
-            cycle_length = st.number_input("Typical cycle length (days)", min_value=15, max_value=45, value=28)
+            last_period_start = st.date_input(
+                "First day of your last period :red[*]", value=None, max_value=date.today()
+            )
+            cycle_length = st.number_input(
+                "Typical cycle length (days) :red[*]", min_value=15, max_value=45, value=28
+            )
         submitted = st.form_submit_button("Get started")
-        if submitted and display_name.strip():
+        if submitted:
+            missing = []
+            if not display_name.strip():
+                missing.append("your name")
+            if goal is None:
+                missing.append("a training goal")
+            if cycle_applicable and last_period_start is None:
+                missing.append("the first day of your last period")
+            if missing:
+                st.error(f"Almost there — we still need {', '.join(missing)}.")
+                return
             profile = Profile(
                 user_id=USER_ID,
                 display_name=display_name.strip(),
