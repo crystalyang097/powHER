@@ -34,12 +34,30 @@ class Profile:
     created_at: datetime = field(default_factory=datetime.now)
 
 
+class SetType(str, Enum):
+    WARMUP = "WARMUP"
+    NORMAL = "NORMAL"
+    FAILURE = "FAILURE"
+
+
+@dataclass
+class WorkoutSet:
+    weight: float
+    reps: int
+    set_type: SetType = SetType.NORMAL
+
+
 @dataclass
 class Exercise:
     name: str
-    weight: float
-    reps: int
-    sets: int
+    sets: list[WorkoutSet]
+    notes: str = ""
+
+    def top_working_weight(self) -> float | None:
+        """Heaviest non-warm-up weight, falling back to any set."""
+        pool = [s.weight for s in self.sets if s.set_type != SetType.WARMUP]
+        pool = pool or [s.weight for s in self.sets]
+        return max(pool) if pool else None
 
 
 @dataclass

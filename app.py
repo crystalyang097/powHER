@@ -15,7 +15,7 @@ from powher.cycle import (
     phase_for_date,
 )
 from powher.messages import get_fallback_message
-from powher.models import EnergyTag, Exercise, Phase, Profile, WorkoutEntry
+from powher.models import EnergyTag, Exercise, Phase, Profile, SetType, WorkoutEntry, WorkoutSet
 
 USER_ID = "local_user"
 GOALS = ["strength", "hypertrophy", "endurance", "general_fitness", "fat_loss"]
@@ -209,21 +209,73 @@ def render_home(profile: Profile):
         st.rerun()
 
 
+SET_TYPE_LABELS = {
+    SetType.NORMAL: "Normal",
+    SetType.WARMUP: "Warm-up",
+    SetType.FAILURE: "To failure",
+}
+
+
+def _new_set() -> dict:
+    return {"uid": uuid.uuid4().hex, "weight": 0.0, "reps": 8, "set_type": SetType.NORMAL}
+
+
+def _new_exercise() -> dict:
+    return {"uid": uuid.uuid4().hex, "name": "", "notes": "", "sets": [_new_set()]}
+
+
 def render_workout(profile: Profile):
     st.subheader("Today's Workout")
 
-    if "exercise_rows" not in st.session_state:
-        st.session_state.exercise_rows = [{"name": "", "weight": 0.0, "reps": 8, "sets": 3}]
+    if "workout_exercises" not in st.session_state:
+        st.session_state.workout_exercises = [_new_exercise()]
 
-    for i, row in enumerate(st.session_state.exercise_rows):
-        cols = st.columns([3, 2, 2, 2])
-        row["name"] = cols[0].text_input("Exercise", value=row["name"], key=f"name_{i}")
-        row["weight"] = cols[1].number_input("Weight", min_value=0.0, value=float(row["weight"]), key=f"weight_{i}", step=2.5)
-        row["reps"] = cols[2].number_input("Reps", min_value=1, value=int(row["reps"]), key=f"reps_{i}")
-        row["sets"] = cols[3].number_input("Sets", min_value=1, value=int(row["sets"]), key=f"sets_{i}")
+    for i, ex in enumerate(st.session_state.workout_exercises):
+        eid = ex["uid"]
+        with st.container(border=True):
+            top = st.columns([5, 1])
+            ex["name"] = top[0].text_input("Exercise", value=ex["name"], key=f"ex_name_{eid}")
+            if len(st.session_state.workout_exercises) > 1:
+                if top[1].button("🗑", key=f"ex_del_{eid}", help="Remove this exercise"):
+                    st.session_state.workout_exercises.pop(i)
+                    st.rerun()
+
+            header = st.columns([1, 3, 2, 2, 1])
+            for col, label in zip(header, ["Set", "Type", "Weight", "Reps", ""]):
+                col.caption(label)
+            for j, s in enumerate(ex["sets"]):
+                sid = s["uid"]
+                cols = st.columns([1, 3, 2, 2, 1])
+                cols[0].markdown(f"**{j + 1}**")
+                s["set_type"] = cols[1].selectbox(
+                    "Type", list(SET_TYPE_LABELS), index=list(SET_TYPE_LABELS).index(s["set_type"]),
+                    format_func=lambda t: SET_TYPE_LABELS[t],
+                    key=f"set_type_{sid}", label_visibility="collapsed",
+                )
+                s["weight"] = cols[2].number_input(
+                    "Weight", min_value=0.0, value=float(s["weight"]), step=2.5,
+                    key=f"set_weight_{sid}", label_visibility="collapsed",
+                )
+                s["reps"] = cols[3].number_input(
+                    "Reps", min_value=1, value=int(s["reps"]),
+                    key=f"set_reps_{sid}", label_visibility="collapsed",
+                )
+                if len(ex["sets"]) > 1:
+                    if cols[4].button("✕", key=f"set_del_{sid}", help="Remove this set"):
+                        ex["sets"].pop(j)
+                        st.rerun()
+
+            if st.button("+ Add set", key=f"add_set_{eid}"):
+                ex["sets"].append({**ex["sets"][-1], "uid": uuid.uuid4().hex})
+                st.rerun()
+
+            ex["notes"] = st.text_input(
+                "Notes for this exercise (optional)", value=ex["notes"], key=f"ex_notes_{eid}",
+                placeholder="e.g. felt heavy today, paused reps, new grip",
+            )
 
     if st.button("+ Add another exercise"):
-        st.session_state.exercise_rows.append({"name": "", "weight": 0.0, "reps": 8, "sets": 3})
+        st.session_state.workout_exercises.append(_new_exercise())
         st.rerun()
 
     energy_tags = st.multiselect(
@@ -231,16 +283,23 @@ def render_workout(profile: Profile):
         options=list(EnergyTag),
         format_func=lambda t: ENERGY_LABELS[t],
     )
-    notes = st.text_area("Notes (optional)", value="")
+    notes = st.text_area("Session notes (optional)", value="", placeholder="Anything about today's session as a whole")
 
     if st.button("Get my recommendation", type="primary"):
         if not energy_tags:
             st.error("Pick at least one energy tag so we know how to help.")
             return
         exercises = [
-            Exercise(name=r["name"].strip(), weight=r["weight"], reps=int(r["reps"]), sets=int(r["sets"]))
-            for r in st.session_state.exercise_rows
-            if r["name"].strip()
+            Exercise(
+                name=ex["name"].strip(),
+                sets=[
+                    WorkoutSet(weight=float(s["weight"]), reps=int(s["reps"]), set_type=s["set_type"])
+                    for s in ex["sets"]
+                ],
+                notes=ex["notes"].strip(),
+            )
+            for ex in st.session_state.workout_exercises
+            if ex["name"].strip()
         ]
 
         phase = current_phase(profile)
@@ -302,7 +361,17 @@ def render_history(profile: Profile):
             if entry.phase:
                 st.caption(f"Estimated phase at the time: {entry.phase.value.title()} (cycle day {entry.cycle_day})")
             for ex in entry.exercises:
-                st.write(f"- {ex.name}: {ex.weight} × {ex.reps} reps × {ex.sets} sets")
+                set_bits = []
+                for s in ex.sets:
+                    bit = f"{s.weight:g}×{s.reps}"
+                    if s.set_type == SetType.WARMUP:
+                        bit += " (warm-up)"
+                    elif s.set_type == SetType.FAILURE:
+                        bit += " (to failure)"
+                    set_bits.append(bit)
+                st.write(f"- **{ex.name}**: {', '.join(set_bits)}")
+                if ex.notes:
+                    st.caption(f"↳ {ex.notes}")
             if entry.notes:
                 st.caption(entry.notes)
 
@@ -310,10 +379,10 @@ def render_history(profile: Profile):
     if exercise_names:
         chosen = st.selectbox("Weight trend for", exercise_names)
         trend = [
-            {"date": e.date, "weight": ex.weight}
+            {"date": e.date, "weight": ex.top_working_weight()}
             for e in sorted(history, key=lambda e: e.date)
             for ex in e.exercises
-            if ex.name == chosen
+            if ex.name == chosen and ex.top_working_weight() is not None
         ]
         if trend:
             import pandas as pd
@@ -377,7 +446,7 @@ def render_cycle(profile: Profile):
     st.caption("Cycle dates are encrypted at rest. You can delete everything, any time.")
     if st.button("Delete all my data", type="secondary"):
         storage.delete_all_user_data(USER_ID)
-        for key in ["profile", "page", "exercise_rows"]:
+        for key in ["profile", "page", "workout_exercises"]:
             st.session_state.pop(key, None)
         st.success("All your data has been deleted.")
         st.rerun()

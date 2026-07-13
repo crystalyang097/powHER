@@ -1,7 +1,7 @@
 from datetime import date, datetime
 
 from powher.context_builder import build_context, detect_pattern
-from powher.models import EnergyTag, Phase, Profile, WorkoutEntry, Exercise
+from powher.models import EnergyTag, Phase, Profile, WorkoutEntry, Exercise, WorkoutSet
 
 
 def _profile(**overrides) -> Profile:
@@ -42,7 +42,7 @@ def test_detect_pattern_requires_at_least_two_matches():
     history = [
         WorkoutEntry(
             entry_id="1", user_id="u", date=date(2026, 6, 15),
-            exercises=[Exercise("Squat", 100, 8, 3)], energy_tags=[EnergyTag.TIRED],
+            exercises=[Exercise("Squat", [WorkoutSet(100, 8), WorkoutSet(100, 8), WorkoutSet(100, 8)])], energy_tags=[EnergyTag.TIRED],
             cycle_day=15, phase=Phase.OVULATORY,
         )
     ]
@@ -53,12 +53,12 @@ def test_detect_pattern_surfaces_recurring_tag():
     history = [
         WorkoutEntry(
             entry_id="1", user_id="u", date=date(2026, 5, 18),
-            exercises=[Exercise("Squat", 100, 8, 3)], energy_tags=[EnergyTag.TIRED],
+            exercises=[Exercise("Squat", [WorkoutSet(100, 8), WorkoutSet(100, 8), WorkoutSet(100, 8)])], energy_tags=[EnergyTag.TIRED],
             cycle_day=16, phase=Phase.LUTEAL,
         ),
         WorkoutEntry(
             entry_id="2", user_id="u", date=date(2026, 6, 16),
-            exercises=[Exercise("Squat", 100, 8, 3)], energy_tags=[EnergyTag.TIRED],
+            exercises=[Exercise("Squat", [WorkoutSet(100, 8), WorkoutSet(100, 8), WorkoutSet(100, 8)])], energy_tags=[EnergyTag.TIRED],
             cycle_day=15, phase=Phase.LUTEAL,
         ),
     ]

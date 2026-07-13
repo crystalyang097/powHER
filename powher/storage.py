@@ -14,7 +14,7 @@ from pathlib import Path
 from cryptography.fernet import Fernet
 from dotenv import load_dotenv, set_key
 
-from powher.models import EnergyTag, Exercise, Phase, Profile, WorkoutEntry
+from powher.models import EnergyTag, Exercise, Phase, Profile, SetType, WorkoutEntry, WorkoutSet
 
 load_dotenv()
 
@@ -138,9 +138,38 @@ def get_profile(user_id: str, db_path: Path = DB_PATH) -> Profile | None:
     )
 
 
+def _exercise_to_dict(ex: Exercise) -> dict:
+    return {
+        "name": ex.name,
+        "notes": ex.notes,
+        "sets": [
+            {"weight": s.weight, "reps": s.reps, "set_type": s.set_type.value} for s in ex.sets
+        ],
+    }
+
+
+def _exercise_from_dict(data: dict) -> Exercise:
+    if isinstance(data.get("sets"), int):
+        # Legacy format: {"name", "weight", "reps", "sets": int} — expand into
+        # that many identical normal sets.
+        sets = [
+            WorkoutSet(weight=data["weight"], reps=data["reps"], set_type=SetType.NORMAL)
+            for _ in range(data["sets"])
+        ]
+        return Exercise(name=data["name"], sets=sets)
+    return Exercise(
+        name=data["name"],
+        sets=[
+            WorkoutSet(weight=s["weight"], reps=s["reps"], set_type=SetType(s["set_type"]))
+            for s in data["sets"]
+        ],
+        notes=data.get("notes", ""),
+    )
+
+
 def save_workout(entry: WorkoutEntry, db_path: Path = DB_PATH) -> None:
     conn = get_connection(db_path)
-    exercises_json = json.dumps([vars(e) for e in entry.exercises])
+    exercises_json = json.dumps([_exercise_to_dict(e) for e in entry.exercises])
     energy_tags = ",".join(tag.value for tag in entry.energy_tags)
     cycle_day_enc = _encrypt(str(entry.cycle_day)) if entry.cycle_day is not None else None
     phase_enc = _encrypt(entry.phase.value) if entry.phase is not None else None
@@ -173,7 +202,7 @@ def save_workout(entry: WorkoutEntry, db_path: Path = DB_PATH) -> None:
 
 
 def _row_to_workout(row: sqlite3.Row) -> WorkoutEntry:
-    exercises = [Exercise(**e) for e in json.loads(row["exercises_json"])]
+    exercises = [_exercise_from_dict(e) for e in json.loads(row["exercises_json"])]
     energy_tags = [EnergyTag(t) for t in row["energy_tags"].split(",") if t]
     cycle_day_dec = _decrypt(row["cycle_day_enc"])
     phase_dec = _decrypt(row["phase_enc"])
@@ -203,7 +232,9 @@ def last_logged_weight(user_id: str, exercise_name: str, db_path: Path = DB_PATH
     for entry in get_workouts(user_id, db_path):
         for ex in entry.exercises:
             if ex.name.strip().lower() == exercise_name.strip().lower():
-                return ex.weight
+                weight = ex.top_working_weight()
+                if weight is not None:
+                    return weight
     return None
 
 
