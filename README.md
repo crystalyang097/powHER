@@ -79,6 +79,11 @@ not a substitute for one.
   the app says so plainly and routes around phase entirely (see the "this might not apply to me"
   path in `cycle.py` / the Cycle & Learn tab). This is acknowledged as a real gap, not treated as
   out of scope forever — see Roadmap.
+- Exercises are free-typed, and matched across sessions (for history grouping and weight trends)
+  by a normalization heuristic that is case-, whitespace-, and plural-insensitive and deliberately
+  protects words like "press". It is a stopgap with two known limits: it cannot merge two genuinely
+  different lifts that happen to normalize to the same string, and it will not catch irregular
+  plurals. A fixed exercise library (see Roadmap) will replace it and remove both.
 - v1 has no real authentication (see §12).
 
 ## 7. Model card
@@ -170,7 +175,9 @@ is the top item on the roadmap below.
 - Real authentication (hashed credentials, sessions, server-side encrypted storage)
 - Apple Health / HealthKit sync
 - Native iOS app
-- Exercise library with form guidance
+- Fixed exercise library with form guidance — pick lifts from a canonical list instead of
+  free-typing, replacing the current name-normalization heuristic so history and trends group
+  exactly
 - Expanded corpus covering hormonal contraception and perimenopause, so the app can responsibly
   serve users currently routed around phase estimation
 
