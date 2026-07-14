@@ -548,6 +548,14 @@ def render_workout(profile: Profile):
     render_rest_timer()
     render_exercise_inputs()
 
+    workout_date = st.date_input(
+        "Workout date",
+        value=date.today(),
+        max_value=date.today(),
+        help="Defaults to today. Pick an earlier date to backfill past sessions — handy for "
+        "building up history to see trends over time.",
+    )
+
     if st.button("✅ Mark workout as done", type="primary"):
         exercises = [
             Exercise(
@@ -566,23 +574,34 @@ def render_workout(profile: Profile):
             return
 
         # Detect weight PRs against prior history (this workout isn't saved yet).
+        # Only for real, same-day sessions — backfilled dates shouldn't fire "new PR".
         prs = []
-        for ex in exercises:
-            prior_best = storage.best_working_weight(USER_ID, ex.name)
-            today_best = ex.top_working_weight()
-            if prior_best is not None and today_best is not None and today_best > prior_best:
-                prs.append(f"{ex.name.strip()} — {today_best:g} (up from {prior_best:g})")
+        if workout_date == date.today():
+            for ex in exercises:
+                prior_best = storage.best_working_weight(USER_ID, ex.name)
+                today_best = ex.top_working_weight()
+                if prior_best is not None and today_best is not None and today_best > prior_best:
+                    prs.append(f"{ex.name.strip()} — {today_best:g} (up from {prior_best:g})")
 
-        phase = current_phase(profile)
+        # Phase/cycle-day reflect the workout's own date, so backfilled sessions
+        # map to the right point in the cycle for trends and pattern detection.
+        phase = None
         cycle_day_val = None
-        if profile.cycle_applicable and profile.last_period_start is not None:
-            cycle_day_val = compute_cycle_day(profile.last_period_start, profile.cycle_length)
+        if (
+            profile.cycle_applicable
+            and profile.last_period_start is not None
+            and workout_date >= profile.last_period_start
+        ):
+            phase = phase_for_date(profile.last_period_start, profile.cycle_length, workout_date)
+            cycle_day_val = compute_cycle_day(
+                profile.last_period_start, profile.cycle_length, workout_date
+            )
 
         saved_tags = [t for t in EnergyTag if t in st.session_state.get("today_energy_set", set())]
         entry = WorkoutEntry(
             entry_id=str(uuid.uuid4()),
             user_id=USER_ID,
-            date=date.today(),
+            date=workout_date,
             exercises=exercises,
             energy_tags=saved_tags,
             cycle_day=cycle_day_val,
