@@ -17,6 +17,7 @@ from dotenv import load_dotenv, set_key
 from powher.models import (
     EnergyTag,
     Exercise,
+    PeriodEvent,
     Phase,
     Profile,
     Routine,
@@ -100,6 +101,17 @@ def init_db(db_path: Path = DB_PATH) -> None:
             user_id TEXT NOT NULL,
             name TEXT NOT NULL,
             exercises_json TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS period_events (
+            event_id TEXT PRIMARY KEY,
+            user_id TEXT NOT NULL,
+            kind TEXT NOT NULL,
+            date_enc TEXT NOT NULL,
             created_at TEXT NOT NULL
         )
         """
@@ -316,10 +328,80 @@ def delete_routine(routine_id: str, db_path: Path = DB_PATH) -> None:
     conn.close()
 
 
+def previous_exercise_sets(
+    user_id: str, exercise_name: str, db_path: Path = DB_PATH
+) -> list[WorkoutSet] | None:
+    """Sets from the most recent past workout containing this (normalized)
+    exercise, for the 'last time' reference in the set editor. None if never logged."""
+    target = normalize_exercise_name(exercise_name)
+    for entry in get_workouts(user_id, db_path):  # already sorted date DESC
+        for ex in entry.exercises:
+            if normalize_exercise_name(ex.name) == target:
+                return ex.sets
+    return None
+
+
+def best_working_weight(user_id: str, exercise_name: str, db_path: Path = DB_PATH) -> float | None:
+    """Heaviest non-warm-up weight ever logged for this (normalized) exercise,
+    across all history. Used to detect personal records."""
+    target = normalize_exercise_name(exercise_name)
+    best: float | None = None
+    for entry in get_workouts(user_id, db_path):
+        for ex in entry.exercises:
+            if normalize_exercise_name(ex.name) == target:
+                w = ex.top_working_weight()
+                if w is not None and (best is None or w > best):
+                    best = w
+    return best
+
+
+def save_period_event(event: PeriodEvent, db_path: Path = DB_PATH) -> None:
+    conn = get_connection(db_path)
+    conn.execute(
+        """
+        INSERT INTO period_events (event_id, user_id, kind, date_enc, created_at)
+        VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(event_id) DO UPDATE SET
+            kind=excluded.kind,
+            date_enc=excluded.date_enc
+        """,
+        (
+            event.event_id,
+            event.user_id,
+            event.kind,
+            _encrypt(event.date.isoformat()),
+            event.created_at.isoformat(),
+        ),
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_period_events(user_id: str, db_path: Path = DB_PATH) -> list[PeriodEvent]:
+    """Period events in chronological order (oldest first)."""
+    conn = get_connection(db_path)
+    rows = conn.execute(
+        "SELECT * FROM period_events WHERE user_id = ? ORDER BY created_at", (user_id,)
+    ).fetchall()
+    conn.close()
+    events = [
+        PeriodEvent(
+            event_id=r["event_id"],
+            user_id=r["user_id"],
+            kind=r["kind"],
+            date=date.fromisoformat(_decrypt(r["date_enc"])),
+            created_at=datetime.fromisoformat(r["created_at"]),
+        )
+        for r in rows
+    ]
+    return sorted(events, key=lambda e: (e.date, e.created_at))
+
+
 def delete_all_user_data(user_id: str, db_path: Path = DB_PATH) -> None:
     conn = get_connection(db_path)
     conn.execute("DELETE FROM profiles WHERE user_id = ?", (user_id,))
     conn.execute("DELETE FROM workouts WHERE user_id = ?", (user_id,))
     conn.execute("DELETE FROM routines WHERE user_id = ?", (user_id,))
+    conn.execute("DELETE FROM period_events WHERE user_id = ?", (user_id,))
     conn.commit()
     conn.close()

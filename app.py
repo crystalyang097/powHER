@@ -4,6 +4,7 @@ import uuid
 from datetime import date, datetime
 
 import streamlit as st
+import streamlit.components.v1 as components
 
 from powher import storage
 from powher.agent import generate
@@ -17,6 +18,7 @@ from powher.cycle import (
 from powher.models import (
     EnergyTag,
     Exercise,
+    PeriodEvent,
     Phase,
     Profile,
     Routine,
@@ -25,6 +27,12 @@ from powher.models import (
     WorkoutEntry,
     WorkoutSet,
     normalize_exercise_name,
+)
+
+CYCLE_LENGTH_HELP = (
+    "Count from the first day of one period to the first day of your next period "
+    "— that whole span is your cycle length. Most fall around 28 days, but anywhere "
+    "from 21 to 35 is common."
 )
 
 USER_ID = "local_user"
@@ -41,9 +49,13 @@ ENERGY_LABELS = {
     EnergyTag.NORMAL: "🙂 Normal",
     EnergyTag.TIRED: "😮‍💨 Tired",
     EnergyTag.DRAINED: "🔋 Drained",
+    EnergyTag.FASTER_FATIGUE: "🌀 Fatiguing faster than usual",
     EnergyTag.CRAMPING: "〰️ Cramping",
     EnergyTag.IN_PAIN: "⚠️ In pain",
-    EnergyTag.FASTER_FATIGUE: "🌀 Fatiguing faster than usual",
+    EnergyTag.HEADACHE: "🤕 Headache",
+    EnergyTag.HOT_FLASHES: "🥵 Hot flashes",
+    EnergyTag.LOWER_BACK_PAIN: "🦴 Lower back pain",
+    EnergyTag.NAUSEA: "🤢 Nausea",
 }
 PHASE_BLURBS = {
     Phase.MENSTRUAL: "Bleeding phase. Some feel low-energy here, some don't — both are normal. Movement is evidence-backed for easing period pain, not something to avoid.",
@@ -162,7 +174,8 @@ def render_onboarding():
                 "First day of your last period :red[*]", value=None, max_value=date.today()
             )
             cycle_length = st.number_input(
-                "Typical cycle length (days) :red[*]", min_value=15, max_value=45, value=28
+                "Typical cycle length (days) :red[*]", min_value=15, max_value=45, value=28,
+                help=CYCLE_LENGTH_HELP,
             )
         submitted = st.form_submit_button("Get started")
         if submitted:
@@ -207,6 +220,50 @@ def render_nav():
     st.divider()
 
 
+def _period_ongoing(events: list[PeriodEvent]) -> bool:
+    """True if the most recently logged event is a period start (i.e. a period
+    is underway and hasn't been marked ended yet)."""
+    return bool(events) and events[-1].kind == "start"
+
+
+def render_period_tracker(profile: Profile):
+    events = storage.get_period_events(USER_ID)
+    if _period_ongoing(events):
+        start_date = events[-1].date
+        st.caption(f"🩸 Period in progress — started {start_date.isoformat()}.")
+        cols = st.columns([3, 1])
+        end_date = cols[0].date_input(
+            "Period ended on",
+            value=date.today(),
+            min_value=start_date,
+            max_value=date.today(),
+            key="period_end_date",
+        )
+        if cols[1].button("Log end", key="log_period_end", use_container_width=True):
+            storage.save_period_event(
+                PeriodEvent(
+                    event_id=str(uuid.uuid4()), user_id=USER_ID, kind="end", date=end_date
+                )
+            )
+            st.toast("Logged the end of your period. Take good care 💗")
+            st.rerun()
+    else:
+        if st.button("🩸 Started period today", use_container_width=True):
+            today = date.today()
+            storage.save_period_event(
+                PeriodEvent(
+                    event_id=str(uuid.uuid4()), user_id=USER_ID, kind="start", date=today
+                )
+            )
+            # Starting a period resets the phase reference date. Cycle length is
+            # left as-is — the user only changes that manually in Cycle & Learn.
+            profile.last_period_start = today
+            storage.save_profile(profile)
+            st.session_state.profile = profile
+            st.toast("Logged the start of your period. Your phase estimate is updated.")
+            st.rerun()
+
+
 def render_home(profile: Profile):
     phase = current_phase(profile)
     if phase is not None:
@@ -232,6 +289,10 @@ def render_home(profile: Profile):
         f"<div class='powher-card'><span class='powher-quote'>“{encouragement}”</span></div>",
         unsafe_allow_html=True,
     )
+
+    if profile.cycle_applicable:
+        render_period_tracker(profile)
+
     st.write("Where to next?")
     c1, c2, c3 = st.columns(3)
     if c1.button("🏋️ Today's Workout", use_container_width=True, key="home_workout"):
@@ -316,28 +377,40 @@ def render_exercise_inputs():
                     st.session_state.workout_exercises.pop(i)
                     st.rerun()
 
-            header = st.columns([1, 3, 2, 2, 1])
-            for col, label in zip(header, ["Set", "Type", "Weight", "Reps", ""]):
+            # "Previous" reference: the same exercise's sets from the most recent
+            # past session, so she can see what to match or beat (Hevy-style).
+            prev_sets = (
+                storage.previous_exercise_sets(USER_ID, ex["name"]) if ex["name"].strip() else None
+            )
+
+            col_spec = [0.7, 2, 3, 2, 2, 0.8]
+            header = st.columns(col_spec)
+            for col, label in zip(header, ["Set", "Previous", "Type", "Weight", "Reps", ""]):
                 col.caption(label)
             for j, s in enumerate(ex["sets"]):
                 sid = s["uid"]
-                cols = st.columns([1, 3, 2, 2, 1])
+                cols = st.columns(col_spec)
                 cols[0].markdown(f"**{j + 1}**")
-                s["set_type"] = cols[1].selectbox(
+                prev = prev_sets[j] if prev_sets and j < len(prev_sets) else None
+                prev_label = f"{prev.weight:g}×{prev.reps}" if prev else "—"
+                cols[1].markdown(
+                    f"<span style='opacity:0.5'>{prev_label}</span>", unsafe_allow_html=True
+                )
+                s["set_type"] = cols[2].selectbox(
                     "Type", list(SET_TYPE_LABELS), index=list(SET_TYPE_LABELS).index(s["set_type"]),
                     format_func=lambda t: SET_TYPE_LABELS[t],
                     key=f"set_type_{sid}", label_visibility="collapsed",
                 )
-                s["weight"] = cols[2].number_input(
+                s["weight"] = cols[3].number_input(
                     "Weight", min_value=0.0, value=float(s["weight"]), step=2.5,
                     key=f"set_weight_{sid}", label_visibility="collapsed",
                 )
-                s["reps"] = cols[3].number_input(
+                s["reps"] = cols[4].number_input(
                     "Reps", min_value=0, value=int(s["reps"]),
                     key=f"set_reps_{sid}", label_visibility="collapsed",
                 )
                 if len(ex["sets"]) > 1:
-                    if cols[4].button("✕", key=f"set_del_{sid}", help="Remove this set"):
+                    if cols[5].button("✕", key=f"set_del_{sid}", help="Remove this set"):
                         ex["sets"].pop(j)
                         st.rerun()
 
@@ -355,6 +428,67 @@ def render_exercise_inputs():
         st.rerun()
 
 
+def render_energy_tag_buttons() -> list[EnergyTag]:
+    """Multi-select energy/symptom check-in as individual toggle buttons.
+    Selected tags are highlighted; returns them in enum order."""
+    if "today_energy_set" not in st.session_state:
+        st.session_state.today_energy_set = set()
+    st.caption("Tap all that apply")
+    tags = list(EnergyTag)
+    per_row = 2
+    for start in range(0, len(tags), per_row):
+        row = tags[start : start + per_row]
+        cols = st.columns(len(row))
+        for col, tag in zip(cols, row):
+            selected = tag in st.session_state.today_energy_set
+            if col.button(
+                ENERGY_LABELS[tag],
+                key=f"energy_btn_{tag.value}",
+                type="primary" if selected else "secondary",
+                use_container_width=True,
+            ):
+                if selected:
+                    st.session_state.today_energy_set.discard(tag)
+                else:
+                    st.session_state.today_energy_set.add(tag)
+                st.rerun()
+    return [t for t in tags if t in st.session_state.today_energy_set]
+
+
+REST_TIMER_HTML = """
+<div style="font-family: sans-serif; text-align:center; color:inherit;">
+  <div id="disp" style="font-size:2.4rem; font-weight:800; margin:0.2rem 0;">0:00</div>
+  <div style="display:flex; gap:0.4rem; justify-content:center; flex-wrap:wrap;">
+    <button onclick="setT(60)">60s</button>
+    <button onclick="setT(90)">90s</button>
+    <button onclick="setT(120)">2:00</button>
+    <button onclick="setT(180)">3:00</button>
+    <button onclick="stopT()" style="background:#e9e2ea;">Reset</button>
+  </div>
+  <style>
+    button { border:none; border-radius:12px; padding:0.5rem 0.9rem; font-weight:700;
+             font-size:0.95rem; cursor:pointer; background:#d8a7b1; color:#3d3241; }
+    button:hover { opacity:0.85; }
+  </style>
+  <script>
+    let remaining = 0, timer = null;
+    const disp = document.getElementById('disp');
+    function fmt(s){ const m=Math.floor(s/60); const ss=String(s%60).padStart(2,'0'); return m+':'+ss; }
+    function tick(){ if(remaining<=0){ clearInterval(timer); timer=null; disp.textContent='Done! 💪'; return; }
+                     remaining--; disp.textContent=fmt(remaining); }
+    function setT(s){ remaining=s; disp.textContent=fmt(remaining);
+                      if(timer) clearInterval(timer); timer=setInterval(tick,1000); }
+    function stopT(){ if(timer) clearInterval(timer); timer=null; remaining=0; disp.textContent='0:00'; }
+  </script>
+</div>
+"""
+
+
+def render_rest_timer():
+    with st.expander("⏱️ Rest timer"):
+        components.html(REST_TIMER_HTML, height=150)
+
+
 def render_workout(profile: Profile):
     st.subheader("Today's Workout")
 
@@ -363,12 +497,7 @@ def render_workout(profile: Profile):
 
     # --- Step 1: check in and get the recommendation BEFORE working out ---
     st.markdown("**First, how are you feeling today?**")
-    energy_tags = st.multiselect(
-        "Pick one or more",
-        options=list(EnergyTag),
-        format_func=lambda t: ENERGY_LABELS[t],
-        key="today_energy",
-    )
+    energy_tags = render_energy_tag_buttons()
     notes = st.text_area(
         "Anything you want to note before you start? (optional)",
         key="today_notes",
@@ -416,6 +545,7 @@ def render_workout(profile: Profile):
     st.divider()
     st.markdown("### Now log your workout")
     render_routine_bar()
+    render_rest_timer()
     render_exercise_inputs()
 
     if st.button("✅ Mark workout as done", type="primary"):
@@ -435,23 +565,34 @@ def render_workout(profile: Profile):
             st.error("Add at least one exercise before marking your workout done.")
             return
 
+        # Detect weight PRs against prior history (this workout isn't saved yet).
+        prs = []
+        for ex in exercises:
+            prior_best = storage.best_working_weight(USER_ID, ex.name)
+            today_best = ex.top_working_weight()
+            if prior_best is not None and today_best is not None and today_best > prior_best:
+                prs.append(f"{ex.name.strip()} — {today_best:g} (up from {prior_best:g})")
+
         phase = current_phase(profile)
         cycle_day_val = None
         if profile.cycle_applicable and profile.last_period_start is not None:
             cycle_day_val = compute_cycle_day(profile.last_period_start, profile.cycle_length)
 
+        saved_tags = [t for t in EnergyTag if t in st.session_state.get("today_energy_set", set())]
         entry = WorkoutEntry(
             entry_id=str(uuid.uuid4()),
             user_id=USER_ID,
             date=date.today(),
             exercises=exercises,
-            energy_tags=st.session_state.get("today_energy", []),
+            energy_tags=saved_tags,
             cycle_day=cycle_day_val,
             phase=phase,
             notes=st.session_state.get("today_notes", ""),
         )
         storage.save_workout(entry)
-        for key in ["today_reco", "today_energy", "today_notes", "workout_exercises"]:
+        if prs:
+            st.session_state["celebrate"] = prs
+        for key in ["today_reco", "today_energy_set", "today_notes", "workout_exercises"]:
             st.session_state.pop(key, None)
         st.toast("Workout saved to your History 💪 You can turn it into a routine there.")
         st.session_state.page = "history"
@@ -487,8 +628,28 @@ def render_save_as_routine(entry: WorkoutEntry):
                     st.rerun()
 
 
+def render_period_log():
+    events = storage.get_period_events(USER_ID)
+    if not events:
+        return
+    st.markdown("#### 🩸 Period log")
+    with st.container(border=True):
+        for e in reversed(events):  # newest first
+            label = "Started" if e.kind == "start" else "Ended"
+            st.write(f"**{label}** — {e.date.isoformat()}")
+    st.divider()
+
+
 def render_history(profile: Profile):
     st.subheader("History")
+
+    celebrate = st.session_state.pop("celebrate", None)
+    if celebrate:
+        st.balloons()
+        for pr in celebrate:
+            st.success(f"🎉 New personal best — {pr}. That's your strength showing.")
+
+    render_period_log()
     history = storage.get_workouts(USER_ID)
     if not history:
         st.write("No workouts logged yet — head to Today's Workout to log your first session.")
@@ -567,7 +728,10 @@ def render_cycle(profile: Profile):
         cycle_length = profile.cycle_length
         if cycle_applicable:
             last_period_start = st.date_input("First day of your last period", value=last_period_start)
-            cycle_length = st.number_input("Typical cycle length (days)", min_value=15, max_value=45, value=cycle_length)
+            cycle_length = st.number_input(
+                "Typical cycle length (days)", min_value=15, max_value=45, value=cycle_length,
+                help=CYCLE_LENGTH_HELP,
+            )
         if st.form_submit_button("Save"):
             profile.cycle_applicable = cycle_applicable
             profile.last_period_start = last_period_start if cycle_applicable else None
@@ -593,7 +757,10 @@ def render_cycle(profile: Profile):
     st.caption("Cycle dates are encrypted at rest. You can delete everything, any time.")
     if st.button("Delete all my data", type="secondary"):
         storage.delete_all_user_data(USER_ID)
-        for key in ["profile", "page", "workout_exercises"]:
+        for key in [
+            "profile", "page", "workout_exercises", "today_energy_set",
+            "today_notes", "today_reco", "celebrate",
+        ]:
             st.session_state.pop(key, None)
         st.success("All your data has been deleted.")
         st.rerun()

@@ -178,6 +178,12 @@ is the top item on the roadmap below.
 - Fixed exercise library with form guidance — pick lifts from a canonical list instead of
   free-typing, replacing the current name-normalization heuristic so history and trends group
   exactly
+- Symptom-aware exercise selection — when a user reports a musculoskeletal symptom, steer the
+  recommendation away from movements that load the affected area. The first target: if she tags
+  **lower back pain**, do not suggest exercises that heavily engage the lower back (e.g. Romanian
+  deadlifts, good mornings, conventional deadlifts). This depends on the exercise library above
+  for a reliable movement→muscle mapping, so it is deferred until that lands. Today the lower-back-
+  pain tag is captured and feeds the recommendation as context, but no exercise is filtered out yet.
 - Expanded corpus covering hormonal contraception and perimenopause, so the app can responsibly
   serve users currently routed around phase estimation
 

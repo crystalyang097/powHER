@@ -49,6 +49,22 @@ MESSAGE_BANK: MessageBank = {
         "Pain is information, not a test you're failing.",
         "Be as kind to yourself today as you'd be to a friend feeling this.",
     ],
+    (EnergyTag.HEADACHE, None): [
+        "A sore head is a real reason to keep things easy today. Lighter still counts.",
+        "Listen to that ache — gentle or short is a smart call, not a lesser one.",
+    ],
+    (EnergyTag.HOT_FLASHES, None): [
+        "Take it at your own temperature today — breaks and water are part of training too.",
+        "However your body's running its thermostat today, meeting it where it is is the win.",
+    ],
+    (EnergyTag.LOWER_BACK_PAIN, None): [
+        "Be gentle with your back today. If something aggravates it, that's your cue to ease off.",
+        "A tender back deserves care, not a test. Move in the ranges that feel safe.",
+    ],
+    (EnergyTag.NAUSEA, None): [
+        "Feeling queasy is a fair reason to go slow or rest. Both are completely okay.",
+        "Your body's asking for gentleness today — that's worth honoring.",
+    ],
 }
 
 GENERIC_FALLBACK = "You showed up today. That already matters."

@@ -48,6 +48,13 @@ class EnergyTag(str, Enum):
     IN_PAIN = "IN_PAIN"
     CRAMPING = "CRAMPING"
     FASTER_FATIGUE = "FASTER_FATIGUE"
+    # Symptoms that affect energy during training. LOWER_BACK_PAIN is a hook for
+    # future symptom-aware programming (avoid lower-back-loading lifts); for now
+    # it simply informs the recommendation like any other tag.
+    HEADACHE = "HEADACHE"
+    HOT_FLASHES = "HOT_FLASHES"
+    LOWER_BACK_PAIN = "LOWER_BACK_PAIN"
+    NAUSEA = "NAUSEA"
 
 
 class Phase(str, Enum):
@@ -124,4 +131,19 @@ class Routine:
     user_id: str
     name: str
     exercises: list[RoutineExercise]
+    created_at: datetime = field(default_factory=datetime.now)
+
+
+PeriodEventKind = Literal["start", "end"]
+
+
+@dataclass
+class PeriodEvent:
+    """A logged start or end of a period. Health data — the date is encrypted
+    at rest. The running history of these is kept so patterns can be reviewed."""
+
+    event_id: str
+    user_id: str
+    kind: PeriodEventKind  # "start" | "end"
+    date: date  # ENCRYPTED at rest
     created_at: datetime = field(default_factory=datetime.now)
