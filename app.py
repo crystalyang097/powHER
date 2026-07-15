@@ -114,10 +114,10 @@ def inject_css():
     dark = st.session_state.get("dark_mode", False)
     if dark:
         bg, card, text, accent, accent2 = "#2b2338", "#3a3048", "#f2ebe4", "#c9a7c9", "#a9c9b8"
-        cream = "#352b43"
+        cream, highlight = "#352b43", "#4a3557"
     else:
         bg, card, text, accent, accent2 = "#fdf8f3", "#ffffff", "#3d3241", "#d8a7b1", "#a9c9b8"
-        cream = "#f7ecdd"
+        cream, highlight = "#f7ecdd", "#f4dde4"
     st.markdown(
         f"""
         <style>
@@ -170,6 +170,20 @@ def inject_css():
         }}
         .powher-phase h4 {{ margin: 0 0 0.4rem 0; color: {text}; font-weight: 800; font-size: 1.15rem; }}
         .powher-phase p {{ margin: 0; color: {text}; line-height: 1.65; }}
+        .powher-phase.current {{ background-color: {highlight}; box-shadow: 0 0 0 2px {accent}, 0 2px 10px rgba(0,0,0,0.10); }}
+        .powher-current-tag {{
+            display: inline-block;
+            background-color: {accent};
+            color: {text};
+            border-radius: 999px;
+            padding: 0.12rem 0.6rem;
+            font-size: 0.68rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-left: 0.55rem;
+            vertical-align: middle;
+        }}
         div.stButton > button {{
             border-radius: 14px;
             font-weight: 700;
@@ -810,9 +824,13 @@ def render_cycle(profile: Profile):
         st.caption(ESTIMATE_NOTE)
 
     st.markdown("### Phase education")
+    current = current_phase(profile)
     for phase, text in PHASE_EDUCATION.items():
+        is_current = phase == current
+        cls = "powher-phase current" if is_current else "powher-phase"
+        tag = "<span class='powher-current-tag'>current</span>" if is_current else ""
         st.markdown(
-            f"<div class='powher-phase'><h4>{phase.value.title()}</h4><p>{text}</p></div>",
+            f"<div class='{cls}'><h4>{phase.value.title()}{tag}</h4><p>{text}</p></div>",
             unsafe_allow_html=True,
         )
     st.markdown(
