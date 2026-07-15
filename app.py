@@ -64,6 +64,39 @@ PHASE_BLURBS = {
     Phase.LUTEAL: "Progesterone rises, then both hormones drop before your next period — PMS symptoms are most commonly reported in this window.",
 }
 PHASE_NORMAL_LINE = "Some women notice this. Many notice nothing. Both are completely normal."
+# Longer, hormone-focused education for the Cycle & Learn tab. Deliberately uses
+# "can"/"may"/"some" throughout — describing what hormones *can* do, never a rule.
+PHASE_EDUCATION = {
+    Phase.MENSTRUAL: (
+        "Your period, roughly days 1–5. Estrogen and progesterone are both at their lowest, "
+        "and that drop is what signals the uterine lining to shed. Prostaglandins — the compounds "
+        "that make the uterus contract — can drive cramping, and some women notice lower energy, "
+        "heavier legs, or disrupted sleep in this window. Others feel completely normal. Gentle "
+        "movement is well-evidenced for easing period pain, so it's a green light here, not "
+        "something to avoid or push through."
+    ),
+    Phase.FOLLICULAR: (
+        "From the end of your period up to ovulation. A follicle matures and estrogen climbs "
+        "steadily. Rising estrogen is often described as energizing and mood-lifting, and some "
+        "women report feeling strong or motivated — but the research on a real, consistent "
+        "performance boost is weak and mixed, so there's no rule that says you'll feel it. If you "
+        "do, enjoy it; if you don't, that's just as normal."
+    ),
+    Phase.OVULATORY: (
+        "The few days around mid-cycle. A surge in luteinizing hormone (LH) triggers the ovary to "
+        "release an egg, and estrogen peaks just before. Some women feel a short lift in energy, "
+        "drive, or confidence around this peak; others notice nothing distinct, and a few feel a "
+        "mild one-sided twinge as the egg releases (called mittelschmerz)."
+    ),
+    Phase.LUTEAL: (
+        "After ovulation until your next period. Progesterone rises to prepare the body for a "
+        "possible pregnancy, and can nudge your resting temperature up slightly and leave you "
+        "feeling warmer or more tired. If there's no pregnancy, both estrogen and progesterone "
+        "fall sharply just before bleeding — the premenstrual drop when PMS symptoms are most "
+        "commonly reported: mood shifts, bloating, breast tenderness, or a session feeling harder "
+        "than the numbers suggest. Many women move through this window feeling completely fine."
+    ),
+}
 # Encouragement stays conditional on how she actually feels — never "you're in
 # X phase, so do Y". Phase gives context; the body gets the final say.
 PHASE_ENCOURAGEMENT = {
@@ -81,8 +114,10 @@ def inject_css():
     dark = st.session_state.get("dark_mode", False)
     if dark:
         bg, card, text, accent, accent2 = "#2b2338", "#3a3048", "#f2ebe4", "#c9a7c9", "#a9c9b8"
+        cream = "#352b43"
     else:
         bg, card, text, accent, accent2 = "#fdf8f3", "#ffffff", "#3d3241", "#d8a7b1", "#a9c9b8"
+        cream = "#f7ecdd"
     st.markdown(
         f"""
         <style>
@@ -126,6 +161,15 @@ def inject_css():
             margin-bottom: 0.3rem;
         }}
         .powher-edu {{ font-size: 1rem; color: {text}; line-height: 1.6; margin: 0.3rem auto; max-width: 90%; }}
+        .powher-phase {{
+            background-color: {cream};
+            border-radius: 18px;
+            padding: 1.2rem 1.5rem;
+            margin-bottom: 1rem;
+            box-shadow: 0 1px 6px rgba(0,0,0,0.05);
+        }}
+        .powher-phase h4 {{ margin: 0 0 0.4rem 0; color: {text}; font-weight: 800; font-size: 1.15rem; }}
+        .powher-phase p {{ margin: 0; color: {text}; line-height: 1.65; }}
         div.stButton > button {{
             border-radius: 14px;
             font-weight: 700;
@@ -766,10 +810,15 @@ def render_cycle(profile: Profile):
         st.caption(ESTIMATE_NOTE)
 
     st.markdown("### Phase education")
-    for phase, blurb in PHASE_BLURBS.items():
-        st.markdown(f"**{phase.value.title()}**")
-        st.write(blurb)
-        st.caption(PHASE_NORMAL_LINE)
+    for phase, text in PHASE_EDUCATION.items():
+        st.markdown(
+            f"<div class='powher-phase'><h4>{phase.value.title()}</h4><p>{text}</p></div>",
+            unsafe_allow_html=True,
+        )
+    st.markdown(
+        f"<p class='powher-note' style='text-align:center'>{PHASE_NORMAL_LINE}</p>",
+        unsafe_allow_html=True,
+    )
 
     st.divider()
     st.markdown("### Your data")
