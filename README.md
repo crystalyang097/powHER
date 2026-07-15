@@ -8,11 +8,43 @@ evidence-grounded recommendation for the session in front of you — plus honest
 your cycle, without pretending the science is more settled than it is. It's built for women who
 want their training app to treat them as capable, not fragile.
 
+## Screens
+
+> Screenshots live in [`docs/screenshots/`](docs/screenshots/). If any image below is blank, the
+> file hasn't been added yet.
+
+**Home** — your estimated phase as *context* (not a prescription), a supportive message, and a
+one-tap period log.
+
+![powHER home screen](docs/screenshots/home.png)
+
+**Today's check-in** — tag how you actually feel (multi-select), *before* the workout, so the
+recommendation is driven by symptoms rather than the calendar.
+
+![Energy and symptom check-in](docs/screenshots/checkin.png)
+
+**Grounded recommendation + logging** — a supportive message and a concrete suggestion, each
+citing the corpus source that backs it, above a Hevy-style set logger that shows last session's
+weights and reps for reference.
+
+![Recommendation and workout logging](docs/screenshots/recommendation.png)
+
+**History & trends** — logged sessions, per-exercise weight trends, personal-record celebrations,
+and a period log.
+
+![Workout history and trends](docs/screenshots/history.png)
+
+**Cycle & Learn** — plain-language, hormone-level education for each phase, with the phase you're
+currently in highlighted.
+
+![Phase education](docs/screenshots/phase-education.png)
+
 ## 2. The design decision that defines the app
 
 **powHER is symptom-responsive, not phase-prescriptive.** Recommendations adjust off your
-self-reported energy tag for that day — ENERGIZED, NORMAL, TIRED, DRAINED, CRAMPING, IN_PAIN,
-FASTER_FATIGUE — never off which cycle phase the calendar says you're in. Phase is shown for
+self-reported energy/symptom tags for that day — ENERGIZED, NORMAL, TIRED, DRAINED,
+FASTER_FATIGUE, CRAMPING, IN_PAIN, HEADACHE, HOT_FLASHES, LOWER_BACK_PAIN, NAUSEA — never off
+which cycle phase the calendar says you're in. Phase is shown for
 context, education, and long-term personal pattern detection only. The app will never generate a
 message like "you're in your luteal phase, so lift 15% less." That number doesn't exist in the
 literature; an app that states it is making it up.
@@ -46,6 +78,27 @@ citations.
 - **Streamlit** — the UI.
 - **SQLite** — local storage for profile and workout history, with cycle-derived fields
   encrypted at rest (see §11).
+
+### Architecture at a glance
+
+Every health claim in a recommendation is grounded in a retrieved corpus chunk, and the raw
+generation is then filtered through hard-coded guardrails before it ever reaches the user. If
+retrieval finds nothing or a guardrail rejects the output, the app falls back to a curated,
+pre-vetted message rather than shipping an ungrounded claim.
+
+```mermaid
+flowchart TD
+    U["Today's check-in<br/>energy/symptom tags + goal + notes"] --> CB
+    H["Workout history<br/>SQLite, encrypted cycle fields"] --> CB
+    P["Cycle phase<br/>date math — context only"] --> CB
+    CB["Context builder<br/>context_builder.py"] --> R
+    R["RAG retriever<br/>ChromaDB + local embeddings"] -->|cited evidence chunks| LLM
+    CB -->|system + user prompt| LLM["Claude (Anthropic SDK)<br/>agent.py"]
+    LLM --> G{"Guardrails<br/>guardrails.py"}
+    G -->|passes| OUT["Recommendation + supportive message<br/>with source citations"]
+    G -->|rejected / no evidence| FB["Curated message bank<br/>messages.py"]
+    FB --> OUT
+```
 
 ## 4. Intended scope
 
