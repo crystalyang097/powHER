@@ -70,6 +70,10 @@ citations.
 
 ## 3. Models & services
 
+powHER is a **retrieval-augmented generation (RAG)** app: every recommendation is generated
+against evidence chunks retrieved from a curated local corpus, and the citations are surfaced in
+the UI. The pieces:
+
 - **Anthropic `claude-opus-4-6`** — grounded generation of recommendations and supportive
   messages, via the Anthropic Python SDK.
 - **`sentence-transformers`** (local) — embeddings for the RAG corpus, so there's no second API
@@ -85,6 +89,17 @@ Every health claim in a recommendation is grounded in a retrieved corpus chunk, 
 generation is then filtered through hard-coded guardrails before it ever reaches the user. If
 retrieval finds nothing or a guardrail rejects the output, the app falls back to a curated,
 pre-vetted message rather than shipping an ungrounded claim.
+
+Two deliberate architecture choices, both made for control over health data and claims:
+
+- **Retrieval is deterministic, not agentic.** The app pre-retrieves evidence *before*
+  generation instead of letting the model decide when to search via tool use. That's what makes
+  the "no unsourced claims" guardrail enforceable and testable — the app controls exactly what
+  evidence enters the context window.
+- **No MCP server.** Exposing the workout log, cycle data, or retriever over the Model Context
+  Protocol would let any connected AI client read health data, so powHER deliberately offers no
+  MCP surface. The only external call the app makes is the generation request to Anthropic; RAG
+  keeps retrieval, storage, and embeddings fully local.
 
 ```mermaid
 flowchart TD
@@ -242,5 +257,8 @@ is the top item on the roadmap below.
 
 ---
 
-Built as a student project for the JHU AI Developer Guide (MCP / Context-Aware AI Interface
-category). See [`SPEC.md`](SPEC.md) for the full build spec this app was implemented against.
+Built as a student project for the JHU AI Developer Guide, in the "MCP / Context-Aware AI
+Interface" category — implemented as the latter: a context-aware interface built on local RAG.
+An MCP server was considered and deliberately rejected to avoid exposing health data to
+connected AI clients (see §3). See [`SPEC.md`](SPEC.md) for the full build spec this app was
+implemented against.
