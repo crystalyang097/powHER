@@ -243,6 +243,8 @@ is the top item on the roadmap below.
 - Real authentication (hashed credentials, sessions, server-side encrypted storage)
 - Apple Health / HealthKit sync
 - Native iOS app
+- Dark mode — an earlier toggle was removed while the UI is being reworked; it will return as a
+  proper theme (deep plum/charcoal, not pure black) meeting WCAG AA contrast in both modes
 - Fixed exercise library with form guidance — pick lifts from a canonical list instead of
   free-typing, replacing the current name-normalization heuristic so history and trends group
   exactly

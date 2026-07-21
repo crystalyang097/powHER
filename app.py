@@ -119,13 +119,9 @@ st.set_page_config(page_title="powHER", page_icon="🌸", layout="centered")
 
 
 def inject_css():
-    dark = st.session_state.get("dark_mode", False)
-    if dark:
-        bg, card, text, accent, accent2 = "#2b2338", "#3a3048", "#f2ebe4", "#c9a7c9", "#a9c9b8"
-        cream, highlight = "#352b43", "#4a3557"
-    else:
-        bg, card, text, accent, accent2 = "#fdf8f3", "#ffffff", "#3d3241", "#d8a7b1", "#a9c9b8"
-        cream, highlight = "#f7ecdd", "#f4dde4"
+    # Light palette only for now — dark mode is on the roadmap (see README §13).
+    bg, card, text, accent, accent2 = "#fdf8f3", "#ffffff", "#3d3241", "#d8a7b1", "#a9c9b8"
+    cream, highlight = "#f7ecdd", "#f4dde4"
     st.markdown(
         f"""
         <style>
@@ -282,7 +278,6 @@ def render_nav():
     for col, (key, label) in zip(cols, labels):
         if col.button(label, use_container_width=True, key=f"nav_{key}"):
             st.session_state.page = key
-    st.toggle("Dark mode", key="dark_mode")
     st.divider()
 
 
