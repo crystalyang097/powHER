@@ -1,5 +1,13 @@
 """powHER — Streamlit entry point."""
 
+import os
+
+# pyarrow's bundled mimalloc allocator segfaults intermittently on macOS while
+# Streamlit Arrow-serializes dataframes/charts (History page), killing the whole
+# Python process. Force Arrow onto the system allocator instead. Must be set
+# before pyarrow is first imported, i.e. before importing streamlit.
+os.environ.setdefault("ARROW_DEFAULT_MEMORY_POOL", "system")
+
 import uuid
 from datetime import date, datetime
 
