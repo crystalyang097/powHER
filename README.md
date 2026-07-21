@@ -42,9 +42,10 @@ currently in highlighted.
 ## 2. The design decision that defines the app
 
 **powHER is symptom-responsive, not phase-prescriptive.** Recommendations adjust off your
-self-reported energy/symptom tags for that day — ENERGIZED, NORMAL, TIRED, DRAINED,
-FASTER_FATIGUE, CRAMPING, IN_PAIN, HEADACHE, HOT_FLASHES, LOWER_BACK_PAIN, NAUSEA — never off
-which cycle phase the calendar says you're in. Phase is shown for
+self-reported check-in for that day — energy tags (ENERGIZED, MOTIVATED, NORMAL, TIRED, DRAINED,
+MUSCLE_FATIGUE, SLEPT_POORLY, BRAIN_FOG) and symptom tags (IN_PAIN, CRAMPING, HEADACHE,
+HOT_FLASHES, LOWER_BACK_PAIN, NAUSEA, BLOATED, BREAST_TENDERNESS, SORENESS, DIZZY, HEAVY_FLOW)
+— never off which cycle phase the calendar says you're in. Phase is shown for
 context, education, and long-term personal pattern detection only. The app will never generate a
 message like "you're in your luteal phase, so lift 15% less." That number doesn't exist in the
 literature; an app that states it is making it up.

@@ -41,20 +41,42 @@ def normalize_exercise_name(name: str) -> str:
 
 
 class EnergyTag(str, Enum):
+    # Energy tags — how her readiness/energy feels today.
     ENERGIZED = "ENERGIZED"
+    MOTIVATED = "MOTIVATED"
     NORMAL = "NORMAL"
     TIRED = "TIRED"
     DRAINED = "DRAINED"
+    MUSCLE_FATIGUE = "MUSCLE_FATIGUE"
+    SLEPT_POORLY = "SLEPT_POORLY"
+    BRAIN_FOG = "BRAIN_FOG"
+    # Symptom tags — physical symptoms that affect training, several of them
+    # cycle-linked. LOWER_BACK_PAIN is a hook for future symptom-aware
+    # programming (avoid lower-back-loading lifts); for now every tag simply
+    # informs the recommendation.
     IN_PAIN = "IN_PAIN"
     CRAMPING = "CRAMPING"
-    FASTER_FATIGUE = "FASTER_FATIGUE"
-    # Symptoms that affect energy during training. LOWER_BACK_PAIN is a hook for
-    # future symptom-aware programming (avoid lower-back-loading lifts); for now
-    # it simply informs the recommendation like any other tag.
     HEADACHE = "HEADACHE"
     HOT_FLASHES = "HOT_FLASHES"
     LOWER_BACK_PAIN = "LOWER_BACK_PAIN"
     NAUSEA = "NAUSEA"
+    BLOATED = "BLOATED"
+    BREAST_TENDERNESS = "BREAST_TENDERNESS"
+    SORENESS = "SORENESS"
+    DIZZY = "DIZZY"
+    HEAVY_FLOW = "HEAVY_FLOW"
+
+
+# Split used by the check-in UI. Every EnergyTag must appear in exactly one group.
+ENERGY_GROUP = [
+    EnergyTag.ENERGIZED, EnergyTag.MOTIVATED, EnergyTag.NORMAL, EnergyTag.TIRED,
+    EnergyTag.DRAINED, EnergyTag.MUSCLE_FATIGUE, EnergyTag.SLEPT_POORLY, EnergyTag.BRAIN_FOG,
+]
+SYMPTOM_GROUP = [
+    EnergyTag.IN_PAIN, EnergyTag.CRAMPING, EnergyTag.HEADACHE, EnergyTag.HOT_FLASHES,
+    EnergyTag.LOWER_BACK_PAIN, EnergyTag.NAUSEA, EnergyTag.BLOATED,
+    EnergyTag.BREAST_TENDERNESS, EnergyTag.SORENESS, EnergyTag.DIZZY, EnergyTag.HEAVY_FLOW,
+]
 
 
 class Phase(str, Enum):

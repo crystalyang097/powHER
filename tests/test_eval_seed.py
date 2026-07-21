@@ -34,7 +34,7 @@ SAMPLE_STATES = [
     (date(2026, 6, 8), EnergyTag.NORMAL),      # follicular
     (date(2026, 6, 10), EnergyTag.TIRED),      # follicular
     (date(2026, 6, 13), EnergyTag.ENERGIZED),  # ovulatory
-    (date(2026, 6, 15), EnergyTag.FASTER_FATIGUE),  # ovulatory
+    (date(2026, 6, 15), EnergyTag.MUSCLE_FATIGUE),  # ovulatory
     (date(2026, 6, 18), EnergyTag.NORMAL),     # luteal
     (date(2026, 6, 22), EnergyTag.DRAINED),    # luteal
     (date(2026, 6, 25), EnergyTag.IN_PAIN),    # luteal

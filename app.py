@@ -24,6 +24,8 @@ from powher.cycle import (
     phase_for_date,
 )
 from powher.models import (
+    ENERGY_GROUP,
+    SYMPTOM_GROUP,
     EnergyTag,
     Exercise,
     PeriodEvent,
@@ -54,16 +56,24 @@ GOAL_LABELS = {
 }
 ENERGY_LABELS = {
     EnergyTag.ENERGIZED: "⚡ Energized",
+    EnergyTag.MOTIVATED: "💪 Motivated",
     EnergyTag.NORMAL: "🙂 Normal",
     EnergyTag.TIRED: "😮‍💨 Tired",
     EnergyTag.DRAINED: "🔋 Drained",
-    EnergyTag.FASTER_FATIGUE: "🌀 Fatiguing faster than usual",
-    EnergyTag.CRAMPING: "〰️ Cramping",
+    EnergyTag.MUSCLE_FATIGUE: "🌀 Muscle fatigue",
+    EnergyTag.SLEPT_POORLY: "😴 Slept poorly",
+    EnergyTag.BRAIN_FOG: "🌫️ Brain fog",
     EnergyTag.IN_PAIN: "⚠️ In pain",
+    EnergyTag.CRAMPING: "〰️ Cramping",
     EnergyTag.HEADACHE: "🤕 Headache",
     EnergyTag.HOT_FLASHES: "🥵 Hot flashes",
     EnergyTag.LOWER_BACK_PAIN: "🦴 Lower back pain",
     EnergyTag.NAUSEA: "🤢 Nausea",
+    EnergyTag.BLOATED: "🎈 Bloated",
+    EnergyTag.BREAST_TENDERNESS: "💗 Breast tenderness",
+    EnergyTag.SORENESS: "😣 Overall soreness",
+    EnergyTag.DIZZY: "💫 Dizzy",
+    EnergyTag.HEAVY_FLOW: "🩸 Heavy flow",
 }
 PHASE_BLURBS = {
     Phase.MENSTRUAL: "Bleeding phase. Some feel low-energy here, some don't — both are normal. Movement is evidence-backed for easing period pain, not something to avoid.",
@@ -489,17 +499,11 @@ def render_exercise_inputs():
         st.rerun()
 
 
-def render_energy_tag_buttons() -> list[EnergyTag]:
-    """Multi-select energy/symptom check-in as individual toggle buttons.
-    Selected tags are highlighted; returns them in enum order."""
-    if "today_energy_set" not in st.session_state:
-        st.session_state.today_energy_set = set()
-    st.caption("Tap all that apply")
-    tags = list(EnergyTag)
+def _render_tag_grid(tags: list[EnergyTag]):
     per_row = 2
     for start in range(0, len(tags), per_row):
         row = tags[start : start + per_row]
-        cols = st.columns(len(row))
+        cols = st.columns(per_row)
         for col, tag in zip(cols, row):
             selected = tag in st.session_state.today_energy_set
             if col.button(
@@ -513,7 +517,19 @@ def render_energy_tag_buttons() -> list[EnergyTag]:
                 else:
                     st.session_state.today_energy_set.add(tag)
                 st.rerun()
-    return [t for t in tags if t in st.session_state.today_energy_set]
+
+
+def render_energy_tag_buttons() -> list[EnergyTag]:
+    """Multi-select check-in as toggle buttons, split into energy and symptom
+    groups. Selected tags are highlighted; returns them in enum order."""
+    if "today_energy_set" not in st.session_state:
+        st.session_state.today_energy_set = set()
+    st.caption("Tap all that apply")
+    st.markdown("**Energy**")
+    _render_tag_grid(ENERGY_GROUP)
+    st.markdown("**Symptoms**")
+    _render_tag_grid(SYMPTOM_GROUP)
+    return [t for t in EnergyTag if t in st.session_state.today_energy_set]
 
 
 REST_TIMER_HTML = """

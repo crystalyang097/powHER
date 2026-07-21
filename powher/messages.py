@@ -30,9 +30,41 @@ MESSAGE_BANK: MessageBank = {
         "Give yourself a little grace today. Your body is doing so much.",
         "Tired isn't the opposite of strong. It's just today's weather.",
     ],
-    (EnergyTag.FASTER_FATIGUE, None): [
+    (EnergyTag.MUSCLE_FATIGUE, None): [
         "Your body's telling you something useful — listening is the strong move.",
         "Cutting a set short today isn't quitting. It's paying attention.",
+    ],
+    (EnergyTag.MOTIVATED, None): [
+        "That drive is yours — spend it on something that feels good to finish.",
+        "Motivated days are gifts. Enjoy this one, no strings attached.",
+    ],
+    (EnergyTag.SLEPT_POORLY, None): [
+        "Short on sleep is a real thing, not a character flaw. Scale today to match.",
+        "A gentler session on a tired brain still counts — showing up is the win.",
+    ],
+    (EnergyTag.BRAIN_FOG, None): [
+        "Foggy days are for familiar movements — let your body run the patterns it knows.",
+        "You don't need to be sharp to be strong. Keep it simple today.",
+    ],
+    (EnergyTag.BLOATED, None): [
+        "Bloating is water and hormones doing their thing — it changes nothing about your strength.",
+        "Comfort first today: looser positions, gentler core work, zero apologies.",
+    ],
+    (EnergyTag.BREAST_TENDERNESS, None): [
+        "Tenderness is common and real — swap or soften anything that aggravates it.",
+        "Adjusting around a sore chest is smart training, not a smaller workout.",
+    ],
+    (EnergyTag.SORENESS, None): [
+        "Soreness means you did something. Easy movement today helps it settle.",
+        "A lighter day on sore muscles is part of the plan, not a pause in it.",
+    ],
+    (EnergyTag.DIZZY, None): [
+        "Dizzy days deserve extra care — stay grounded, sip water, and skip anything that feels risky.",
+        "If the room's spinning even a little, gentleness is the only assignment today.",
+    ],
+    (EnergyTag.HEAVY_FLOW, None): [
+        "Heavy days ask a lot of your body. Whatever feels comfortable is exactly enough.",
+        "Choose comfort first today — your strength isn't going anywhere.",
     ],
     (EnergyTag.DRAINED, None): [
         "Rest is training. It's where the strength actually gets built.",
