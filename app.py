@@ -740,6 +740,32 @@ def render_history(profile: Profile):
         st.write("No workouts logged yet — head to Today's Workout to log your first session.")
         return
 
+    # Weight trend first, so it's visible without scrolling past every session.
+    # Group exercises by normalized name (case, spacing, and plural insensitive)
+    # so variants like "Goblet Squat", "goblet squat", and "goblet squats" share
+    # one trend. Same resolver as storage.last_logged_weight.
+    by_norm: dict[str, str] = {}
+    for e in sorted(history, key=lambda e: e.date):
+        for ex in e.exercises:
+            by_norm[normalize_exercise_name(ex.name)] = ex.name.strip()  # keep latest spelling as label
+    if by_norm:
+        st.markdown("#### 📈 Weight trend")
+        chosen = st.selectbox("Weight trend for", sorted(by_norm.values(), key=str.lower))
+        chosen_norm = normalize_exercise_name(chosen)
+        trend = [
+            {"date": e.date, "weight": ex.top_working_weight()}
+            for e in sorted(history, key=lambda e: e.date)
+            for ex in e.exercises
+            if normalize_exercise_name(ex.name) == chosen_norm and ex.top_working_weight() is not None
+        ]
+        if trend:
+            import pandas as pd
+
+            df = pd.DataFrame(trend).set_index("date")
+            st.line_chart(df)
+        st.divider()
+
+    st.markdown("#### 🏋️ Logged sessions")
     for entry in history:
         with st.container(border=True):
             st.markdown(f"**{entry.date.isoformat()}** — {', '.join(t.value.title() for t in entry.energy_tags)}")
@@ -760,28 +786,6 @@ def render_history(profile: Profile):
             if entry.notes:
                 st.caption(entry.notes)
             render_save_as_routine(entry)
-
-    # Group exercises by normalized name (case, spacing, and plural insensitive)
-    # so variants like "Goblet Squat", "goblet squat", and "goblet squats" share
-    # one trend. Same resolver as storage.last_logged_weight.
-    by_norm: dict[str, str] = {}
-    for e in sorted(history, key=lambda e: e.date):
-        for ex in e.exercises:
-            by_norm[normalize_exercise_name(ex.name)] = ex.name.strip()  # keep latest spelling as label
-    if by_norm:
-        chosen = st.selectbox("Weight trend for", sorted(by_norm.values(), key=str.lower))
-        chosen_norm = normalize_exercise_name(chosen)
-        trend = [
-            {"date": e.date, "weight": ex.top_working_weight()}
-            for e in sorted(history, key=lambda e: e.date)
-            for ex in e.exercises
-            if normalize_exercise_name(ex.name) == chosen_norm and ex.top_working_weight() is not None
-        ]
-        if trend:
-            import pandas as pd
-
-            df = pd.DataFrame(trend).set_index("date")
-            st.line_chart(df)
 
     tagged_days = [(e.cycle_day, e.energy_tags[0].value) for e in history if e.cycle_day is not None and e.energy_tags]
     if tagged_days:
